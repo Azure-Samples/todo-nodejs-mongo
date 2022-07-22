@@ -24,7 +24,7 @@ resource resourceGroup 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   tags: tags
 }
 
-module resources './resources.bicep' = {
+module resources 'resources.bicep' = {
   name: 'resources-${resourceToken}'
   scope: resourceGroup
   params: {
