@@ -2,6 +2,10 @@ param location string
 param resourceToken string
 param tags object
 param cosmosDatabaseName string
+param cosmosConnectionStringKey string
+
+param linuxFxVersion string
+param appCommandLine string = ''
 
 var abbrs = loadJsonContent('../abbreviations.json')
 
@@ -26,8 +30,9 @@ resource api 'Microsoft.Web/sites@2022-03-01' = {
     serverFarmId: appServicePlan.id
     siteConfig: {
       alwaysOn: true
-      linuxFxVersion: 'NODE|16-lts'
+      linuxFxVersion: linuxFxVersion
       ftpsState: 'FtpsOnly'
+      appCommandLine: appCommandLine
     }
     httpsOnly: true
   }
@@ -37,7 +42,7 @@ resource api 'Microsoft.Web/sites@2022-03-01' = {
   resource appSettings 'config' = {
     name: 'appsettings'
     properties: {
-      AZURE_COSMOS_CONNECTION_STRING_KEY: 'AZURE-COSMOS-CONNECTION-STRING'
+      AZURE_COSMOS_CONNECTION_STRING_KEY: cosmosConnectionStringKey
       AZURE_COSMOS_DATABASE_NAME: cosmosDatabaseName
       SCM_DO_BUILD_DURING_DEPLOYMENT: 'true'
       AZURE_KEY_VAULT_ENDPOINT: keyVault.properties.vaultUri
