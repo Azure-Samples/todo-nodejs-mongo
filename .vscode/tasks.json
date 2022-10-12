@@ -4,11 +4,17 @@
         {
             "label": "Setup Web Env",
             "command": ".vscode/setup-web.sh",
+            "windows": {
+                "command": ".vscode/setup-web.ps1"
+            },
             "problemMatcher": []
         },
         {
             "label": "Setup API Env",
             "command": ".vscode/setup-api.sh",
+            "windows": {
+                "command": ".vscode/setup-api.cmd"
+            },
             "problemMatcher": []
         },
         {
