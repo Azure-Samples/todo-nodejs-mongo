@@ -2,8 +2,16 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "Setup Codespaces",
+            "command": ".vscode/setup-codespaces.sh",
+            "problemMatcher": []
+        },
+        {
             "label": "Start Web",
             "type": "dotenv",
+            "dependsOn": [
+                "Setup Codespaces"
+            ],
             "targetTasks": [
                 "Restore Web",
                 "Web npm start"
@@ -27,7 +35,6 @@
             "options": {
                 "cwd": "${workspaceFolder}/src/web/",
                 "env": {
-                    "REACT_APP_API_BASE_URL": "http://localhost:3100",
                     "BROWSER": "none"
                 }
             },
