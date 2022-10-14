@@ -12,7 +12,8 @@
             "url": "http://localhost:3000",
             "sourceMapPathOverrides": {
                 "webpack:///src/*": "${webRoot}/*"
-            }, 
+            },
+            "preLaunchTask": "Start Web"
         },
 
         {
