@@ -49,7 +49,7 @@ function getSafeWorkingDir(): string {
 function getAccessTokenFromAzd(
     scopes: string[]
 ): Promise<{ stdout: string; stderr: string; error: Error | null}> {
-    const args = ["get-access-token", "--output", "json", ...scopes.flatMap((scope) => ["--scope", scope])];
+    const args = ["auth", "token", "--output", "json", ...scopes.flatMap((scope) => ["--scope", scope])];
 
     return new Promise((resolve, reject) => {
         try {
