@@ -17,19 +17,44 @@ export class AzureDeveloperCliCredential implements TokenCredential {
         }
 
         try {
-            const {stdout, error} = await getAccessTokenFromAzd(scopes);
-            if (error) {
-                throw new CredentialUnavailableError(`failed to call azd get-access-token: ${error}`);    
+            const obj = await getAzdAccessToken(scopes);
+            const isNotLoggedInError = obj.stderr?.match("not logged in, run `azd login` to login");
+
+            if (isNotLoggedInError) {
+                throw new CredentialUnavailableError(
+                    "Please run 'azd login' from a command prompt to authenticate before using this credential."
+                );
             }
 
-            const resp: { token: string, expiresOn: string} = JSON.parse(stdout);
+            if (obj.error && (obj.error as any).code === "ENOENT") {
+                throw new CredentialUnavailableError(
+                    "Azure Developer CLI could not be found. Please visit https://aka.ms/azure-dev for installation instructions and then, once installed, authenticate to your Azure account using 'azd login'."
+                );
+            }
 
-            return {
-                token: resp.token,
-                expiresOnTimestamp: new Date(resp.expiresOn).getTime()
-            };
-        } catch (err: unknown) {
-            throw new CredentialUnavailableError(`failed to call azd get-access-token: ${err}`);   
+            try {
+                const resp: { token: string, expiresOn: string} = JSON.parse(obj.stdout);
+
+                return {
+                    token: resp.token,
+                    expiresOnTimestamp: new Date(resp.expiresOn).getTime()
+                };
+            } catch (e: any) {
+                if (obj.stderr) {
+                    throw new CredentialUnavailableError(obj.stderr);
+                }
+
+                throw e;
+            }
+        } catch (err: any) {
+            const error =
+                err.name === "CredentialUnavailableError"
+                    ? err
+                    : new CredentialUnavailableError(
+                        (err as Error).message || "Unknown error while trying to retrieve the access token"
+                    );
+
+            throw error;
         }
     }
 }
@@ -46,17 +71,26 @@ function getSafeWorkingDir(): string {
 }
 
 
-function getAccessTokenFromAzd(
+function getAzdAccessToken(
     scopes: string[]
 ): Promise<{ stdout: string; stderr: string; error: Error | null}> {
-    const args = ["auth", "token", "--output", "json", ...scopes.flatMap((scope) => ["--scope", scope])];
-
     return new Promise((resolve, reject) => {
         try {
-            child_process.execFile("azd", args, {cwd: getSafeWorkingDir()}, (error, stdout, stderr) => {
-                resolve({ stdout, stderr, error });
-            });
-        } catch (err: unknown) {
+            child_process.execFile(
+                "azd",
+                [
+                    "auth",
+                    "token",
+                    "--output",
+                    "json",
+                    ...scopes.flatMap((scope) => ["--scope", scope])
+                ],
+                { cwd: getSafeWorkingDir() },
+                (error, stdout, stderr) => {
+                    resolve({ stdout, stderr, error });
+                }
+            );
+        } catch (err: any) {
             reject(err);
         }
     });
