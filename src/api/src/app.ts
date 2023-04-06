@@ -17,7 +17,22 @@ export const createApp = async (): Promise<Express> => {
     await configureMongoose(config.database);
     // Middleware
     app.use(express.json());
-    app.use(cors());
+
+    const apiUrl:string = process.env.REACT_APP_WEB_BASE_URL!;
+    if (apiUrl != ""){
+        app.use(cors({
+            origin: ["https://portal.azure.com",
+                "https://ms.portal.azure.com",
+                "http://localhost:3000/",
+                apiUrl]
+        }));
+        const filePath:string = __filename;
+        console.log("CORS with "+origin[2]+" is allowed for local host debugging. If you want to change pin number, go to "+filePath);
+    }
+    else{
+        app.use(cors());
+        console.log("Setting CORS to allow all origins because env var REACT_APP_WEB_BASE_URL has no value or is not set.");
+    }
 
     // API Routes
     app.use("/lists/:listId/items", items);
