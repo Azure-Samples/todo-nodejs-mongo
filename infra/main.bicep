@@ -126,14 +126,31 @@ module appServicePlan './core/host/appserviceplan.bicep' = {
 }
 
 // Store secrets in a keyvault
-module keyVault './core/security/keyvault.bicep' = {
+// module keyVault './core/security/keyvault.bicep' = {
+//   name: 'keyvault'
+//   scope: rg
+//   params: {
+//     name: !empty(keyVaultName) ? keyVaultName : '${abbrs.keyVaultVaults}${resourceToken}'
+//     location: location
+//     tags: tags
+//     principalId: principalId
+//   }
+// }
+
+module keyVault 'br/public:avm-res-keyvault-vault:1.0.0' = {
   name: 'keyvault'
   scope: rg
   params: {
     name: !empty(keyVaultName) ? keyVaultName : '${abbrs.keyVaultVaults}${resourceToken}'
     location: location
     tags: tags
-    principalId: principalId
+    rolesAssignments: !empty(principalId) ? [
+      {
+        principalId: principalId
+        principalType: 'User'
+        roleDefinitionIdOrName: '4633458b-17de-408a-b874-0445c86b69e6'
+      }
+    ] : []
   }
 }
 
@@ -184,7 +201,7 @@ output AZURE_COSMOS_DATABASE_NAME string = cosmos.outputs.databaseName
 
 // App outputs
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString
-output AZURE_KEY_VAULT_ENDPOINT string = keyVault.outputs.endpoint
+output AZURE_KEY_VAULT_ENDPOINT string = keyVault.outputs.uri
 output AZURE_KEY_VAULT_NAME string = keyVault.outputs.name
 output AZURE_LOCATION string = location
 output AZURE_TENANT_ID string = tenant().tenantId
@@ -192,4 +209,4 @@ output REACT_APP_API_BASE_URL string = useAPIM ? apimApi.outputs.SERVICE_API_URI
 output REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString
 output REACT_APP_WEB_BASE_URL string = web.outputs.SERVICE_WEB_URI
 output USE_APIM bool = useAPIM
-output SERVICE_API_ENDPOINTS array = useAPIM ? [ apimApi.outputs.SERVICE_API_URI, api.outputs.SERVICE_API_URI ]: []
+output SERVICE_API_ENDPOINTS array = useAPIM ? [ apimApi.outputs.SERVICE_API_URI, api.outputs.SERVICE_API_URI ] : []
