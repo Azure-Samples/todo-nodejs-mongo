@@ -137,14 +137,14 @@ module appServicePlan './core/host/appserviceplan.bicep' = {
 //   }
 // }
 
-module keyVault 'br/public:avm-res-keyvault-vault:1.0.0' = {
+module keyVault 'br/public:avm-res-keyvault-vault:0.1.0' = {
   name: 'keyvault'
   scope: rg
   params: {
     name: !empty(keyVaultName) ? keyVaultName : '${abbrs.keyVaultVaults}${resourceToken}'
     location: location
     tags: tags
-    rolesAssignments: !empty(principalId) ? [
+    roleAssignments: !empty(principalId) ? [
       {
         principalId: principalId
         principalType: 'User'
