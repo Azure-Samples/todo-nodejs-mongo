@@ -9,6 +9,20 @@ param environmentName string
 @description('Primary location for all resources')
 param location string
 
+@description('The email address of the owner of the service')
+@minLength(1)
+param publisherEmail string = 'noreply@microsoft.com'
+
+@description('The name of the owner of the service')
+@minLength(1)
+param publisherName string = 'n/a'
+
+param connectionStringKey string = 'AZURE-COSMOS-CONNECTION-STRING'
+param databaseName string = ''
+// Because databaseName is optional in main.bicep, we make sure the database name is set here.
+var defaultDatabaseName = 'Todo'
+var actualDatabaseName = !empty(databaseName) ? databaseName : defaultDatabaseName
+
 // Optional parameters to override the default azd resource naming conventions. Update the main.parameters.json file to provide values. e.g.,:
 // "resourceGroupName": {
 //      "value": "myGroupName"
@@ -25,8 +39,19 @@ param resourceGroupName string = ''
 param webServiceName string = ''
 param apimServiceName string = ''
 
+var actualCosmosAccountName = !empty(cosmosAccountName)? cosmosAccountName: '${abbrs.documentDBDatabaseAccounts}${resourceToken}'
+
 @description('Flag to use Azure API Management to mediate the calls between the Web frontend and the backend API')
 param useAPIM bool = false
+
+@description('API Management SKU to use if APIM is enabled')
+@allowed([
+  'Consumption'
+  'Developer'
+  'Standard'
+  'Premium'
+])
+param apimSku string = 'Consumption'
 
 @description('Id of the user or app to assign application roles')
 param principalId string = ''
@@ -52,7 +77,7 @@ module web 'br/public:avm/res/web/site:0.2.0' = {
     serverFarmResourceId: appServicePlan.outputs.resourceId
     tags: union(tags, { 'azd-service-name': 'web' })
     location: location
-    appInsightResourceId: resourceId(subscription().subscriptionId, rg.name, 'Microsoft.insights/components', monitoring.outputs.applicationInsightsName)
+    appInsightResourceId: applicationInsights.outputs.resourceId
     siteConfig: {
       windowsFxVersion: 'node|18-lts'
       appCommandLine: './entrypoint.sh -o ./env-config.js && pm2 serve /home/site/wwwroot --no-daemon --spa'
@@ -60,14 +85,18 @@ module web 'br/public:avm/res/web/site:0.2.0' = {
   }
 }
 
-module webAppSettings './core/host/appservice-appsettings.bicep' = {
-  name: 'web-appsettings'
+// Set environment variables for the frontend
+module webAppSettings 'br/public:avm/res/web/site:0.2.0' = {
   scope: rg
+  name: 'web-appsettings'
   params: {
+    kind: 'app'
     name: web.outputs.name
-    appSettings: {
-      REACT_APP_API_BASE_URL: useAPIM ? apimApi.outputs.SERVICE_API_URI : 'https://${api.outputs.defaultHostname}'
-      REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING: monitoring.outputs.applicationInsightsConnectionString
+    serverFarmResourceId: appServicePlan.outputs.resourceId
+    tags: union(tags, { 'azd-service-name': 'web' })
+    appSettingsKeyValuePairs: {
+      REACT_APP_API_BASE_URL: 'https://${api.outputs.defaultHostname}'
+      REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING: applicationInsights.outputs.connectionString
     }
   }
 }
@@ -82,7 +111,7 @@ module api 'br/public:avm/res/web/site:0.2.0' = {
     serverFarmResourceId: appServicePlan.outputs.resourceId
     tags: union(tags, { 'azd-service-name': 'api' })
     location: location
-    appInsightResourceId: resourceId(subscription().subscriptionId, rg.name, 'Microsoft.insights/components',monitoring.outputs.applicationInsightsName)
+    appInsightResourceId: applicationInsights.outputs.resourceId
     managedIdentities: {
       systemAssigned: true
     }
@@ -96,9 +125,9 @@ module api 'br/public:avm/res/web/site:0.2.0' = {
     }
     appSettingsKeyValuePairs: {
       AZURE_KEY_VAULT_ENDPOINT: keyVault.outputs.uri
-      AZURE_COSMOS_CONNECTION_STRING_KEY: cosmos.outputs.connectionStringKey
+      AZURE_COSMOS_CONNECTION_STRING_KEY: connectionStringKey
       AZURE_COSMOS_DATABASE_NAME: !empty(cosmosDatabaseName) ? cosmosDatabaseName: 'Todo'
-      AZURE_COSMOS_ENDPOINT: cosmos.outputs.endpoint
+      AZURE_COSMOS_ENDPOINT: 'https://${cosmos.outputs.name}.mongo.cosmos.azure.com:443/'
       API_ALLOW_ORIGINS: 'https://${web.outputs.defaultHostname}'
       SCM_DO_BUILD_DURING_DEPLOYMENT: 'True'
       ENABLE_ORYX_BUILD: 'True'
@@ -106,26 +135,83 @@ module api 'br/public:avm/res/web/site:0.2.0' = {
   }
 }
 
-// Give the API access to KeyVault
-module apiKeyVaultAccess './core/security/keyvault-access.bicep' = {
-  name: 'api-keyvault-access'
-  scope: rg
-  params: {
-    keyVaultName: keyVault.outputs.name
-    principalId: api.outputs.systemAssignedMIPrincipalId
-  }
-}
-
 // The application database
-module cosmos './app/db.bicep' = {
-  name: 'cosmos'
+module cosmos 'br/public:avm/res/document-db/database-account:0.3.0' = {
   scope: rg
+  name: 'cosmos'
   params: {
-    accountName: !empty(cosmosAccountName) ? cosmosAccountName : '${abbrs.documentDBDatabaseAccounts}${resourceToken}'
-    databaseName: cosmosDatabaseName
+    locations: [
+      {
+        failoverPriority: 0
+        isZoneRedundant: false
+        locationName: location
+      }
+    ]
+    name: actualCosmosAccountName
     location: location
+    managedIdentities: {
+      systemAssigned: true
+    }
+    mongodbDatabases: [
+      {
+        collections: [
+          {
+            indexes: [
+              {
+                key: {
+                  keys: [
+                    '_id'
+                  ]
+                }
+              }
+              {
+                key: {
+                  keys: [
+                    '_id'
+                  ]
+                }
+                options: {
+                  unique: true
+                }
+              }
+            ]
+            name: 'TodoList'
+            shardKey: {
+              _id: 'Hash'
+            }
+            throughput: 600
+          }
+          {
+            indexes: [
+              {
+                key: {
+                  keys: [
+                    '_id'
+                  ]
+                }
+              }
+              {
+                key: {
+                  keys: [
+                    '_id'
+                  ]
+                }
+                options: {
+                  unique: true
+                }
+              }
+            ]
+            name: 'TodoItem'
+            shardKey: {
+              _id: 'Hash'
+            }
+          }
+        ]
+        name: actualDatabaseName
+        throughput: 800
+      }
+    ]
     tags: tags
-    keyVaultName: keyVault.outputs.name
   }
 }
 
@@ -150,17 +236,40 @@ module appServicePlan 'br/public:avm/res/web/serverfarm:0.1.0' = {
 }
 
 // Store secrets in a keyvault
-module keyVault 'br/public:avm/res/key-vault/vault:0.3.5' = {
+module keyVault './app/keyvault-secrets.bicep' = {
+  scope:rg
   name: 'keyvault'
-  scope: rg
-  params: {
+  params:{
     name: !empty(keyVaultName) ? keyVaultName : '${abbrs.keyVaultVaults}${resourceToken}'
     location: location
     tags: tags
+    connectionStringKey: connectionStringKey
+    cosmosAccountName: cosmos.outputs.name
+    principalId:principalId
+    resourceGroupName:rg.name
+  }
+  dependsOn:[
+    cosmos
+  ]
+}
+
+// Give the API access to KeyVault
+module apiKeyVaultAccess 'br/public:avm/res/key-vault/vault:0.3.5' = {
+  name: 'api-keyvault-access'
+  scope: rg
+  params: {
+    name: keyVault.outputs.name
     enableRbacAuthorization: false
+    tags: tags
     accessPolicies: [
       {
         objectId: principalId
+        permissions: {
+          secrets: [ 'get', 'list' ]
+        }
+      }
+      {
+        objectId: api.outputs.systemAssignedMIPrincipalId
         permissions: {
           secrets: [ 'get', 'list' ]
         }
@@ -170,27 +279,63 @@ module keyVault 'br/public:avm/res/key-vault/vault:0.3.5' = {
 }
 
 // Monitor application with Azure Monitor
-module monitoring './core/monitor/monitoring.bicep' = {
-  name: 'monitoring'
+module logAnalytics 'br/public:avm/res/operational-insights/workspace:0.3.4' = {
   scope: rg
+  name: 'logAnalytics'
   params: {
+    name: !empty(logAnalyticsName) ? logAnalyticsName : '${abbrs.operationalInsightsWorkspaces}${resourceToken}'
     location: location
     tags: tags
-    logAnalyticsName: !empty(logAnalyticsName) ? logAnalyticsName : '${abbrs.operationalInsightsWorkspaces}${resourceToken}'
-    applicationInsightsName: !empty(applicationInsightsName) ? applicationInsightsName : '${abbrs.insightsComponents}${resourceToken}'
-    applicationInsightsDashboardName: !empty(applicationInsightsDashboardName) ? applicationInsightsDashboardName : '${abbrs.portalDashboards}${resourceToken}'
+  }
+}
+module applicationInsights 'br/public:avm/res/insights/component:0.3.0' = {
+  scope: rg
+  name: 'applicationInsights'
+  params: {
+    name: !empty(applicationInsightsName) ? applicationInsightsName : '${abbrs.insightsComponents}${resourceToken}'
+    workspaceResourceId: logAnalytics.outputs.resourceId
+    location: location
+    tags: tags
+  }
+}
+
+module applicationInsightsDashboard './app/applicationinsights-dashboard.bicep' = {
+  scope: rg
+  name: 'application-insights-dashboard'
+  params: {
+    name: !empty(applicationInsightsDashboardName) ? applicationInsightsDashboardName : '${abbrs.portalDashboards}${resourceToken}'
+    location: location
+    applicationInsightsName: applicationInsights.outputs.name
   }
 }
 
 // Creates Azure API Management (APIM) service to mediate the requests between the frontend and the backend API
-module apim './core/gateway/apim.bicep' = if (useAPIM) {
-  name: 'apim-deployment'
+module apim 'br/public:avm/res/api-management/service:0.1.3' = if (useAPIM) {
   scope: rg
+  name: 'apim-deployment'
   params: {
     name: !empty(apimServiceName) ? apimServiceName : '${abbrs.apiManagementService}${resourceToken}'
+    publisherEmail: publisherEmail
+    publisherName: publisherName
     location: location
     tags: tags
-    applicationInsightsName: monitoring.outputs.applicationInsightsName
+    // sku: apimSku
+    customProperties: apimSku == 'Consumption' ? {} : {
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA': 'false'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA': 'false'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TLS_RSA_WITH_AES_128_GCM_SHA256': 'false'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TLS_RSA_WITH_AES_256_CBC_SHA256': 'false'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TLS_RSA_WITH_AES_128_CBC_SHA256': 'false'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TLS_RSA_WITH_AES_256_CBC_SHA': 'false'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TLS_RSA_WITH_AES_128_CBC_SHA': 'false'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Ciphers.TripleDes168': 'false'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Tls10': 'false'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Tls11': 'false'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Protocols.Ssl30': 'false'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Tls10': 'false'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Tls11': 'false'
+      'Microsoft.WindowsAzure.ApiManagement.Gateway.Security.Backend.Protocols.Ssl30': 'false'
+    }
   }
 }
 
@@ -199,7 +344,7 @@ module apimApi './app/apim-api.bicep' = if (useAPIM) {
   name: 'apim-api-deployment'
   scope: rg
   params: {
-    name: useAPIM ? apim.outputs.apimServiceName : ''
+    name: useAPIM ? apim.outputs.name : ''
     apiName: 'todo-api'
     apiDisplayName: 'Simple Todo API'
     apiDescription: 'This is a simple Todo API'
@@ -207,21 +352,22 @@ module apimApi './app/apim-api.bicep' = if (useAPIM) {
     webFrontendUrl: 'https://${web.outputs.defaultHostname}'
     apiBackendUrl: 'https://${api.outputs.defaultHostname}'
     apiAppName: api.outputs.name
+    applicationInsightsName: applicationInsights.outputs.name
   }
 }
 
 // Data outputs
-output AZURE_COSMOS_CONNECTION_STRING_KEY string = cosmos.outputs.connectionStringKey
-output AZURE_COSMOS_DATABASE_NAME string = cosmos.outputs.databaseName
+output AZURE_COSMOS_CONNECTION_STRING_KEY string = connectionStringKey
+output AZURE_COSMOS_DATABASE_NAME string = actualDatabaseName
 
 // App outputs
-output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString
+output APPLICATIONINSIGHTS_CONNECTION_STRING string = applicationInsights.outputs.connectionString
 output AZURE_KEY_VAULT_ENDPOINT string = keyVault.outputs.uri
 output AZURE_KEY_VAULT_NAME string = keyVault.outputs.name
 output AZURE_LOCATION string = location
 output AZURE_TENANT_ID string = tenant().tenantId
 output REACT_APP_API_BASE_URL string = useAPIM ? apimApi.outputs.SERVICE_API_URI : 'https://${api.outputs.defaultHostname}'
-output REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString
+output REACT_APP_APPLICATIONINSIGHTS_CONNECTION_STRING string = applicationInsights.outputs.connectionString
 output REACT_APP_WEB_BASE_URL string = 'https://${web.outputs.defaultHostname}'
 output USE_APIM bool = useAPIM
 output SERVICE_API_ENDPOINTS array = useAPIM ? [ apimApi.outputs.SERVICE_API_URI, 'https://${api.outputs.defaultHostname}' ]: []
