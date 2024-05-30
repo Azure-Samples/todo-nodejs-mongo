@@ -63,6 +63,9 @@ param collections array = [
 @description('Flag to use Azure API Management to mediate the calls between the Web frontend and the backend API')
 param useAPIM bool = false
 
+@description('API Management SKU to use if APIM is enabled')
+param apimSku string = 'Consumption'
+
 @description('Id of the user or app to assign application roles')
 param principalId string = ''
 
@@ -93,8 +96,8 @@ module web 'br/public:avm/res/web/site:0.2.0' = {
     location: location
     appInsightResourceId: appInsightResourceId
     siteConfig: {
-      appCommandLine: 'pm2 serve /home/site/wwwroot --no-daemon --spa'
       linuxFxVersion: 'node|20-lts'
+      appCommandLine: 'pm2 serve /home/site/wwwroot --no-daemon --spa'
       alwaysOn: true
     }
   }
@@ -193,10 +196,7 @@ module appServicePlan 'br/public:avm/res/web/serverfarm:0.1.0' = {
   params: {
     name: !empty(appServicePlanName) ? appServicePlanName : '${abbrs.webServerFarms}${resourceToken}'
     sku: {
-      capacity: 1
-      family: 'B'
       name: 'B3'
-      size: 'B1'
       tier: 'Basic'
     }
     location: location
@@ -268,7 +268,7 @@ module apim 'br/public:avm/res/api-management/service:0.1.3' = if (useAPIM) {
         apiDescription: 'This is a simple Todo API'
         serviceUrl: apiUri
         subscriptionRequired: false
-        value: loadTextContent('../src/api/openapi.yaml')
+        value: loadTextContent('../src/api/wwwroot/openapi.yaml')
         policies: [
           {
             value: replace(loadTextContent('./app/apim-api-policy.xml'), '{origin}', webUri)
@@ -292,6 +292,7 @@ module apimsettings './app/apim-api-settings.bicep' = if (useAPIM) {
     applicationInsightsName: applicationInsights.outputs.name
   }
 }
+
 
 // Data outputs
 output AZURE_COSMOS_CONNECTION_STRING_KEY string = connectionStringKey
