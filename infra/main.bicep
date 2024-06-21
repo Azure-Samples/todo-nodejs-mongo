@@ -248,6 +248,7 @@ module applicationInsightsDashboard './app/applicationinsights-dashboard.bicep' 
     name: !empty(applicationInsightsDashboardName) ? applicationInsightsDashboardName : '${abbrs.portalDashboards}${resourceToken}'
     location: location
     applicationInsightsName: applicationInsights.outputs.name
+    applicationInsightsId: applicationInsights.outputs.resourceId
   }
 }
 
