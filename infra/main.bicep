@@ -18,7 +18,7 @@ param applicationInsightsDashboardName string = ''
 param applicationInsightsName string = ''
 param appServicePlanName string = ''
 param cosmosAccountName string = ''
-param cosmosDatabaseName string = ''
+param cosmosDatabaseName string = 'Todo'
 param keyVaultName string = ''
 param logAnalyticsName string = ''
 param resourceGroupName string = ''
@@ -44,6 +44,8 @@ resource rg 'Microsoft.Resources/resourceGroups@2021-04-01' = {
   location: location
   tags: tags
 }
+
+// TODO: AVM resource group.  Don't exist in CARML
 
 // The application frontend
 module web './app/web.bicep' = {
@@ -90,17 +92,79 @@ module apiKeyVaultAccess './core/security/keyvault-access.bicep' = {
 }
 
 // The application database
-module cosmos './app/db.bicep' = {
-  name: 'cosmos'
+// module cosmos './app/db.bicep' = {
+//   name: 'cosmos'
+//   scope: rg
+//   params: {
+//     accountName: !empty(cosmosAccountName) ? cosmosAccountName : '${abbrs.documentDBDatabaseAccounts}${resourceToken}'
+//     databaseName: cosmosDatabaseName
+//     location: location
+//     tags: tags
+//     keyVaultName: keyVault.outputs.name
+//   }
+// }
+
+module cosmos 'br/public:storage/cosmos-db:3.0.2' = {
   scope: rg
+  name: 'cosmos'
   params: {
-    accountName: !empty(cosmosAccountName) ? cosmosAccountName : '${abbrs.documentDBDatabaseAccounts}${resourceToken}'
-    databaseName: cosmosDatabaseName
+    backendApi: 'mongodb'
+    name: !empty(cosmosAccountName) ? cosmosAccountName : '${abbrs.documentDBDatabaseAccounts}${resourceToken}'
     location: location
     tags: tags
-    keyVaultName: keyVault.outputs.name
+    enableServerless: true
+    consistencyPolicy: {
+      defaultConsistencyLevel: 'Session'
+    }
+    isZoneRedundant: false
+    mongoDBServerVersion: '4.2'
+    
+    mongodbDatabases: [
+      {
+        name: cosmosDatabaseName
+        collections: [
+          {
+            name: 'TodoList'
+            indexes: [
+              {
+                key: {
+                  keys: [
+                    '_id'
+                  ]
+                }
+                options: {
+                  unique: true
+                }
+              }
+            ]
+            shardKey: {
+              _id: 'Hash'
+            }
+          }
+          {
+            name: 'TodoItem'
+            indexes: [
+              {
+                key: {
+                  keys: [
+                    '_id'
+                  ]
+                }
+                options: {
+                  unique: true
+                }
+              }
+            ]
+            shardKey: {
+              _id: 'Hash'
+            }
+          }
+        ]
+      }
+    ]
   }
 }
+
 
 // Create an App Service Plan to group applications under the same payment plan and SKU
 module appServicePlan './core/host/appserviceplan.bicep' = {
@@ -117,14 +181,31 @@ module appServicePlan './core/host/appserviceplan.bicep' = {
 }
 
 // Store secrets in a keyvault
-module keyVault './core/security/keyvault.bicep' = {
+// module keyVault './core/security/keyvault.bicep' = {
+//   name: 'keyvault'
+//   scope: rg
+//   params: {
+//     name: !empty(keyVaultName) ? keyVaultName : '${abbrs.keyVaultVaults}${resourceToken}'
+//     location: location
+//     tags: tags
+//     principalId: principalId
+//   }
+// }
+
+module keyVault 'br/public:avm-res-keyvault-vault:0.1.0' = {
   name: 'keyvault'
   scope: rg
   params: {
     name: !empty(keyVaultName) ? keyVaultName : '${abbrs.keyVaultVaults}${resourceToken}'
     location: location
     tags: tags
-    principalId: principalId
+    roleAssignments: !empty(principalId) ? [
+      {
+        principalId: principalId
+        principalType: 'User'
+        roleDefinitionIdOrName: '4633458b-17de-408a-b874-0445c86b69e6'
+      }
+    ] : []
   }
 }
 
@@ -176,11 +257,11 @@ output AZURE_COSMOS_DATABASE_NAME string = cosmos.outputs.databaseName
 
 // App outputs
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString
-output AZURE_KEY_VAULT_ENDPOINT string = keyVault.outputs.endpoint
+output AZURE_KEY_VAULT_ENDPOINT string = keyVault.outputs.uri
 output AZURE_KEY_VAULT_NAME string = keyVault.outputs.name
 output AZURE_LOCATION string = location
 output AZURE_TENANT_ID string = tenant().tenantId
 output API_BASE_URL string = useAPIM ? apimApi.outputs.SERVICE_API_URI : api.outputs.SERVICE_API_URI
 output REACT_APP_WEB_BASE_URL string = web.outputs.SERVICE_WEB_URI
 output USE_APIM bool = useAPIM
-output SERVICE_API_ENDPOINTS array = useAPIM ? [ apimApi.outputs.SERVICE_API_URI, api.outputs.SERVICE_API_URI ]: []
+output SERVICE_API_ENDPOINTS array = useAPIM ? [ apimApi.outputs.SERVICE_API_URI, api.outputs.SERVICE_API_URI ] : []
