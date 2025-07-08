@@ -2,41 +2,17 @@ param accountName string
 param location string = resourceGroup().location
 param tags object = {}
 param cosmosDatabaseName string = ''
-param collections array = [
+param containers array = [
   {
     name: 'TodoList'
-    id: 'TodoList'
-    shardKey: {
-      keys: [
-        'Hash'
-      ]
-    }
-    indexes: [
-      {
-        key: {
-          keys: [
-            '_id'
-          ]
-        }
-      }
+    partitionKeyPaths: [
+      '/id'
     ]
   }
   {
     name: 'TodoItem'
-    id: 'TodoItem'
-    shardKey: {
-      keys: [
-        'Hash'
-      ]
-    }
-    indexes: [
-      {
-        key: {
-          keys: [
-            '_id'
-          ]
-        }
-      }
+    partitionKeyPaths: [
+      '/id'
     ]
   }
 ]
@@ -45,7 +21,7 @@ var defaultDatabaseName = 'Todo'
 var actualDatabaseName = !empty(cosmosDatabaseName) ? cosmosDatabaseName : defaultDatabaseName
 
 module cosmos 'br/public:avm/res/document-db/database-account:0.6.0' = {
-  name: 'cosmos-mongo'
+  name: 'cosmos-sql'
   params: {
     locations: [
       {
@@ -57,11 +33,11 @@ module cosmos 'br/public:avm/res/document-db/database-account:0.6.0' = {
     name: accountName
     location: location
     disableLocalAuth: true
-    mongodbDatabases: [
+    sqlDatabases: [
       {
         name: actualDatabaseName
         tags: tags
-        collections: collections
+        containers: containers
       }
     ]
   }
