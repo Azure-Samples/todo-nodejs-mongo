@@ -123,14 +123,13 @@ module cosmos './app/db-avm.bicep' = {
   }
 }
 
-// Give the API managed identity access to Cosmos DB
-module apiCosmosRoleAssignment 'br/public:avm/ptn/authorization/role-assignment:0.1.0' = {
-  name: 'api-cosmos-role-assignment'
+// Give the API managed identity access to Cosmos DB using built-in Data Contributor role
+module apiCosmosRoleAssignment './app/cosmos-role-assignment.bicep' = {
+  name: 'api-cosmos-role'
   scope: rg
   params: {
-    principalId: api.outputs.SERVICE_API_IDENTITY_PRINCIPAL_ID
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', 'b24988ac-6180-42a0-ab88-20f7382dd24c')
-    resourceId: cosmos.outputs.resourceId
+    cosmosAccountName: cosmos.outputs.accountName
+    apiPrincipalId: api.outputs.SERVICE_API_IDENTITY_PRINCIPAL_ID
   }
 }
 
