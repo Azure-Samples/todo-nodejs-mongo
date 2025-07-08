@@ -5,13 +5,13 @@ param cosmosDatabaseName string = ''
 param containers array = [
   {
     name: 'TodoList'
-    partitionKeyPaths: [
+    paths: [
       '/id'
     ]
   }
   {
     name: 'TodoItem'
-    partitionKeyPaths: [
+    paths: [
       '/id'
     ]
   }
