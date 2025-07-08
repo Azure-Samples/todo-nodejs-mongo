@@ -2,8 +2,6 @@ param accountName string
 param location string = resourceGroup().location
 param tags object = {}
 param cosmosDatabaseName string = ''
-param keyVaultResourceId string
-param connectionStringKey string = 'AZURE-COSMOS-CONNECTION-STRING'
 param collections array = [
   {
     name: 'TodoList'
@@ -58,6 +56,7 @@ module cosmos 'br/public:avm/res/document-db/database-account:0.6.0' = {
     ]
     name: accountName
     location: location
+    disableLocalAuth: true
     mongodbDatabases: [
       {
         name: actualDatabaseName
@@ -65,13 +64,10 @@ module cosmos 'br/public:avm/res/document-db/database-account:0.6.0' = {
         collections: collections
       }
     ]
-    secretsExportConfiguration: {
-      keyVaultResourceId: keyVaultResourceId
-      primaryWriteConnectionStringSecretName: connectionStringKey
-    }
   }
 }
 
-output connectionStringKey string = connectionStringKey
 output databaseName string = actualDatabaseName
 output endpoint string = cosmos.outputs.endpoint
+output accountName string = accountName
+output resourceId string = cosmos.outputs.resourceId

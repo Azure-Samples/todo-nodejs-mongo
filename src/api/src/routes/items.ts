@@ -1,14 +1,14 @@
 import express from "express";
-import mongoose from "mongoose";
 import { Request } from "express";
 import { PagingQueryParams } from "../routes/common";
-import { TodoItem, TodoItemModel, TodoItemState } from "../models/todoItem";
+import { TodoItem, TodoItemState } from "../models/todoItem";
+import { TodoItemRepository } from "../models/todoItemRepository";
 
 const router = express.Router({ mergeParams: true });
 
 type TodoItemPathParams = {
-    listId: mongoose.Types.ObjectId
-    itemId: mongoose.Types.ObjectId
+    listId: string
+    itemId: string
     state?: TodoItemState
 }
 
@@ -16,15 +16,20 @@ type TodoItemPathParams = {
  * Gets a list of Todo item within a list
  */
 router.get("/", async (req: Request<TodoItemPathParams, unknown, unknown, PagingQueryParams>, res) => {
-    const query = TodoItemModel.find({ listId: req.params.listId });
-    const skip = req.query.skip ? parseInt(req.query.skip) : 0;
-    const top = req.query.top ? parseInt(req.query.top) : 20;
-    const lists = await query
-        .skip(skip)
-        .limit(top)
-        .exec();
-
-    res.json(lists);
+    try {
+        const repository = new TodoItemRepository();
+        const items = await repository.findByListId(req.params.listId);
+        
+        // Apply pagination
+        const skip = req.query.skip ? parseInt(req.query.skip) : 0;
+        const top = req.query.top ? parseInt(req.query.top) : 20;
+        const paginatedItems = items.slice(skip, skip + top);
+        
+        res.json(paginatedItems);
+    } catch (err) {
+        console.error("Error fetching items:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
 });
 
 /**
@@ -32,25 +37,17 @@ router.get("/", async (req: Request<TodoItemPathParams, unknown, unknown, Paging
  */
 router.post("/", async (req: Request<TodoItemPathParams, unknown, TodoItem>, res) => {
     try {
-        const item: TodoItem = {
+        const repository = new TodoItemRepository();
+        const item = await repository.create({
             ...req.body,
             listId: req.params.listId
-        };
+        });
 
-        let newItem = new TodoItemModel(item);
-        newItem = await newItem.save();
-
-        res.setHeader("location", `${req.protocol}://${req.get("Host")}/lists/${req.params.listId}/${newItem.id}`);
-        res.status(201).json(newItem);
-    }
-    catch (err: any) {
-        switch (err.constructor) {
-        case mongoose.Error.CastError:
-        case mongoose.Error.ValidationError:
-            return res.status(400).json(err.errors);
-        default:
-            throw err;
-        }
+        res.setHeader("location", `${req.protocol}://${req.get("Host")}/lists/${req.params.listId}/${item.id}`);
+        res.status(201).json(item);
+    } catch (err) {
+        console.error("Error creating item:", err);
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -59,21 +56,17 @@ router.post("/", async (req: Request<TodoItemPathParams, unknown, TodoItem>, res
  */
 router.get("/:itemId", async (req: Request<TodoItemPathParams>, res) => {
     try {
-        const list = await TodoItemModel
-            .findOne({ _id: req.params.itemId, listId: req.params.listId })
-            .orFail()
-            .exec();
+        const repository = new TodoItemRepository();
+        const item = await repository.findById(req.params.itemId);
 
-        res.json(list);
-    }
-    catch (err: any) {
-        switch (err.constructor) {
-        case mongoose.Error.CastError:
-        case mongoose.Error.DocumentNotFoundError:
+        if (!item || item.listId !== req.params.listId) {
             return res.status(404).send();
-        default:
-            throw err;
         }
+
+        res.json(item);
+    } catch (err) {
+        console.error("Error fetching item:", err);
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -82,30 +75,20 @@ router.get("/:itemId", async (req: Request<TodoItemPathParams>, res) => {
  */
 router.put("/:itemId", async (req: Request<TodoItemPathParams, unknown, TodoItem>, res) => {
     try {
-        const item: TodoItem = {
+        const repository = new TodoItemRepository();
+        const updated = await repository.update(req.params.itemId, {
             ...req.body,
-            id: req.params.itemId,
             listId: req.params.listId
-        };
+        });
 
-        await TodoItemModel.validate(item);
-        const updated = await TodoItemModel
-            .findOneAndUpdate({ _id: item.id }, item, { new: true })
-            .orFail()
-            .exec();
+        if (!updated) {
+            return res.status(404).send();
+        }
 
         res.json(updated);
-    }
-    catch (err: any) {
-        switch (err.constructor) {
-        case mongoose.Error.ValidationError:
-            return res.status(400).json(err.errors);
-        case mongoose.Error.CastError:
-        case mongoose.Error.DocumentNotFoundError:
-            return res.status(404).send();
-        default:
-            throw err;
-        }
+    } catch (err) {
+        console.error("Error updating item:", err);
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -114,21 +97,17 @@ router.put("/:itemId", async (req: Request<TodoItemPathParams, unknown, TodoItem
  */
 router.delete("/:itemId", async (req, res) => {
     try {
-        await TodoItemModel
-            .findByIdAndDelete(req.params.itemId, {})
-            .orFail()
-            .exec();
+        const repository = new TodoItemRepository();
+        const deleted = await repository.delete(req.params.itemId);
+
+        if (!deleted) {
+            return res.status(404).send();
+        }
 
         res.status(204).send();
-    }
-    catch (err: any) {
-        switch (err.constructor) {
-        case mongoose.Error.CastError:
-        case mongoose.Error.DocumentNotFoundError:
-            return res.status(404).send();
-        default:
-            throw err;
-        }
+    } catch (err) {
+        console.error("Error deleting item:", err);
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 
@@ -136,43 +115,48 @@ router.delete("/:itemId", async (req, res) => {
  * Get a list of items by state
  */
 router.get("/state/:state", async (req: Request<TodoItemPathParams, unknown, unknown, PagingQueryParams>, res) => {
-    const query = TodoItemModel.find({ listId: req.params.listId, state: req.params.state });
-    const skip = req.query.skip ? parseInt(req.query.skip) : 0;
-    const top = req.query.top ? parseInt(req.query.top) : 20;
-
-    const lists = await query
-        .skip(skip)
-        .limit(top)
-        .exec();
-
-    res.json(lists);
+    try {
+        const repository = new TodoItemRepository();
+        const items = await repository.findByListId(req.params.listId);
+        
+        // Filter by state
+        const filteredItems = items.filter(item => item.state === req.params.state);
+        
+        // Apply pagination
+        const skip = req.query.skip ? parseInt(req.query.skip) : 0;
+        const top = req.query.top ? parseInt(req.query.top) : 20;
+        const paginatedItems = filteredItems.slice(skip, skip + top);
+        
+        res.json(paginatedItems);
+    } catch (err) {
+        console.error("Error fetching items by state:", err);
+        res.status(500).json({ error: "Internal server error" });
+    }
 });
 
-router.put("/state/:state", async (req: Request<TodoItemPathParams, unknown, mongoose.Types.ObjectId[]>, res) => {
+router.put("/state/:state", async (req: Request<TodoItemPathParams, unknown, string[]>, res) => {
     try {
+        const repository = new TodoItemRepository();
         const completedDate = req.params.state === TodoItemState.Done ? new Date() : undefined;
 
-        const updateTasks = req.body.map(
-            id => TodoItemModel
-                .findOneAndUpdate(
-                    { listId: req.params.listId, _id: id },
-                    { state: req.params.state, completedDate: completedDate })
-                .orFail()
-                .exec()
-        );
+        const updateTasks = req.body.map(async (id) => {
+            const item = await repository.findById(id);
+            if (!item || item.listId !== req.params.listId) {
+                throw new Error(`Item ${id} not found or doesn't belong to list ${req.params.listId}`);
+            }
+            
+            return repository.update(id, { 
+                state: req.params.state as TodoItemState, 
+                completedDate: completedDate 
+            });
+        });
 
         await Promise.all(updateTasks);
 
         res.status(204).send();
-    }
-    catch (err: any) {
-        switch (err.constructor) {
-        case mongoose.Error.CastError:
-        case mongoose.Error.DocumentNotFoundError:
-            return res.status(404).send();
-        default:
-            throw err;
-        }
+    } catch (err) {
+        console.error("Error updating items state:", err);
+        res.status(500).json({ error: "Internal server error" });
     }
 });
 

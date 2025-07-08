@@ -5,7 +5,7 @@ import yaml from "yamljs";
 import { getConfig } from "./config";
 import lists from "./routes/lists";
 import items from "./routes/items";
-import { configureMongoose } from "./models/mongoose";
+import { configureCosmos } from "./models/cosmosClient";
 import { observability } from "./config/observability";
 
 // Use API_ALLOW_ORIGINS env var with comma separated urls like
@@ -46,7 +46,7 @@ export const createApp = async (): Promise<Express> => {
 
     // Configuration
     observability(config.observability);
-    await configureMongoose(config.database);
+    await configureCosmos(config.database);
     // Middleware
     app.use(express.json());
     
