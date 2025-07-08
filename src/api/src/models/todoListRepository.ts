@@ -6,14 +6,14 @@ export class TodoListRepository {
     private container = getTodoListContainer();
 
     async findAll(): Promise<TodoList[]> {
-        const { resources } = await this.container.items.readAll<TodoList>().fetchAll();
-        return resources;
+        const { resources } = await this.container.items.readAll().fetchAll();
+        return resources as TodoList[];
     }
 
     async findById(id: string): Promise<TodoList | null> {
         try {
-            const { resource } = await this.container.item(id, id).read<TodoList>();
-            return resource || null;
+            const { resource } = await this.container.item(id, id).read();
+            return resource as TodoList || null;
         } catch (error: any) {
             if (error.code === 404) {
                 return null;
@@ -33,11 +33,11 @@ export class TodoListRepository {
             updatedDate: now,
         };
 
-        const { resource } = await this.container.items.create<TodoList>(newTodoList);
+        const { resource } = await this.container.items.create(newTodoList);
         if (!resource) {
             throw new Error("Failed to create todo list");
         }
-        return resource;
+        return resource as TodoList;
     }
 
     async update(id: string, todoList: Partial<TodoList>): Promise<TodoList | null> {
@@ -53,8 +53,8 @@ export class TodoListRepository {
             updatedDate: new Date(),
         };
 
-        const { resource } = await this.container.item(id, id).replace<TodoList>(updated);
-        return resource || null;
+        const { resource } = await this.container.item(id, id).replace(updated);
+        return resource as TodoList || null;
     }
 
     async delete(id: string): Promise<boolean> {

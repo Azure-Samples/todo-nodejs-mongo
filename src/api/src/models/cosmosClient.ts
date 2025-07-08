@@ -1,3 +1,4 @@
+
 import { CosmosClient, Container, Database } from "@azure/cosmos";
 import { DefaultAzureCredential } from "@azure/identity";
 import { DatabaseConfig } from "../config/appConfig";
@@ -85,8 +86,8 @@ const createMockContainer = () => ({
             fetchAll: async () => {
                 const resources = Array.from(mockData.values());
                 // Simple query implementation for tests
-                if (spec.query && spec.query.includes('listId')) {
-                    const listIdParam = spec.parameters?.find((p: any) => p.name === '@listId');
+                if (spec.query && spec.query.includes("listId")) {
+                    const listIdParam = spec.parameters?.find((p: any) => p.name === "@listId");
                     if (listIdParam) {
                         return {
                             resources: resources.filter((r: any) => r.listId === listIdParam.value)

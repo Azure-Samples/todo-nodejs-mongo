@@ -16,14 +16,14 @@ export class TodoItemRepository {
             ]
         };
 
-        const { resources } = await this.container.items.query<TodoItem>(querySpec).fetchAll();
-        return resources;
+        const { resources } = await this.container.items.query(querySpec).fetchAll();
+        return resources as TodoItem[];
     }
 
     async findById(id: string): Promise<TodoItem | null> {
         try {
-            const { resource } = await this.container.item(id, id).read<TodoItem>();
-            return resource || null;
+            const { resource } = await this.container.item(id, id).read();
+            return resource as TodoItem || null;
         } catch (error: any) {
             if (error.code === 404) {
                 return null;
@@ -47,11 +47,11 @@ export class TodoItemRepository {
             updatedDate: now,
         };
 
-        const { resource } = await this.container.items.create<TodoItem>(newTodoItem);
+        const { resource } = await this.container.items.create(newTodoItem);
         if (!resource) {
             throw new Error("Failed to create todo item");
         }
-        return resource;
+        return resource as TodoItem;
     }
 
     async update(id: string, todoItem: Partial<TodoItem>): Promise<TodoItem | null> {
@@ -67,8 +67,8 @@ export class TodoItemRepository {
             updatedDate: new Date(),
         };
 
-        const { resource } = await this.container.item(id, id).replace<TodoItem>(updated);
-        return resource || null;
+        const { resource } = await this.container.item(id, id).replace(updated);
+        return resource as TodoItem || null;
     }
 
     async delete(id: string): Promise<boolean> {
