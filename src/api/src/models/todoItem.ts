@@ -1,5 +1,3 @@
-import mongoose, { Schema } from "mongoose";
-
 export enum TodoItemState {
     Todo = "todo",
     InProgress = "inprogress",
@@ -7,8 +5,8 @@ export enum TodoItemState {
 }
 
 export type TodoItem = {
-    id: mongoose.Types.ObjectId
-    listId: mongoose.Types.ObjectId
+    id: string
+    listId: string
     name: string
     state: TodoItemState
     description?: string
@@ -17,29 +15,3 @@ export type TodoItem = {
     createdDate?: Date
     updatedDate?: Date
 }
-
-const schema = new Schema({
-    listId: {
-        type: Schema.Types.ObjectId,
-        required: true
-    },
-    name: {
-        type: String,
-        required: true
-    },
-    description: String,
-    state: {
-        type: String,
-        required: true,
-        default: TodoItemState.Todo
-    },
-    dueDate: Date,
-    completedDate: Date,
-}, {
-    timestamps: {
-        createdAt: "createdDate",
-        updatedAt: "updatedDate"
-    }
-});
-
-export const TodoItemModel = mongoose.model<TodoItem>("TodoItem", schema, "TodoItem");

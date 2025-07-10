@@ -4,7 +4,7 @@ export interface ObservabilityConfig {
 }
 
 export interface DatabaseConfig {
-    connectionString: string
+    endpoint: string
     databaseName: string
 }
 

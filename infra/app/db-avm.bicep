@@ -2,43 +2,17 @@ param accountName string
 param location string = resourceGroup().location
 param tags object = {}
 param cosmosDatabaseName string = ''
-param keyVaultResourceId string
-param connectionStringKey string = 'AZURE-COSMOS-CONNECTION-STRING'
-param collections array = [
+param containers array = [
   {
     name: 'TodoList'
-    id: 'TodoList'
-    shardKey: {
-      keys: [
-        'Hash'
-      ]
-    }
-    indexes: [
-      {
-        key: {
-          keys: [
-            '_id'
-          ]
-        }
-      }
+    paths: [
+      '/id'
     ]
   }
   {
     name: 'TodoItem'
-    id: 'TodoItem'
-    shardKey: {
-      keys: [
-        'Hash'
-      ]
-    }
-    indexes: [
-      {
-        key: {
-          keys: [
-            '_id'
-          ]
-        }
-      }
+    paths: [
+      '/id'
     ]
   }
 ]
@@ -47,7 +21,7 @@ var defaultDatabaseName = 'Todo'
 var actualDatabaseName = !empty(cosmosDatabaseName) ? cosmosDatabaseName : defaultDatabaseName
 
 module cosmos 'br/public:avm/res/document-db/database-account:0.6.0' = {
-  name: 'cosmos-mongo'
+  name: 'cosmos-sql'
   params: {
     locations: [
       {
@@ -58,20 +32,18 @@ module cosmos 'br/public:avm/res/document-db/database-account:0.6.0' = {
     ]
     name: accountName
     location: location
-    mongodbDatabases: [
+    disableLocalAuth: true
+    sqlDatabases: [
       {
         name: actualDatabaseName
         tags: tags
-        collections: collections
+        containers: containers
       }
     ]
-    secretsExportConfiguration: {
-      keyVaultResourceId: keyVaultResourceId
-      primaryWriteConnectionStringSecretName: connectionStringKey
-    }
   }
 }
 
-output connectionStringKey string = connectionStringKey
 output databaseName string = actualDatabaseName
 output endpoint string = cosmos.outputs.endpoint
+output accountName string = accountName
+output resourceId string = cosmos.outputs.resourceId

@@ -74,9 +74,8 @@ module api './app/api-appservice-avm.bicep' = {
     }
     appSettings: {
       AZURE_KEY_VAULT_ENDPOINT: keyVault.outputs.uri
-      AZURE_COSMOS_CONNECTION_STRING_KEY: cosmos.outputs.connectionStringKey
       AZURE_COSMOS_DATABASE_NAME: cosmos.outputs.databaseName
-      AZURE_COSMOS_ENDPOINT: 'https://${cosmos.outputs.databaseName}.documents.azure.com:443/'
+      AZURE_COSMOS_ENDPOINT: cosmos.outputs.endpoint
       API_ALLOW_ORIGINS: web.outputs.SERVICE_WEB_URI
       SCM_DO_BUILD_DURING_DEPLOYMENT: true
     }
@@ -121,7 +120,16 @@ module cosmos './app/db-avm.bicep' = {
     accountName: !empty(cosmosAccountName) ? cosmosAccountName : '${abbrs.documentDBDatabaseAccounts}${resourceToken}'
     location: location
     tags: tags
-    keyVaultResourceId: keyVault.outputs.resourceId
+  }
+}
+
+// Give the API managed identity access to Cosmos DB using built-in Data Contributor role
+module apiCosmosRoleAssignment './app/cosmos-role-assignment.bicep' = {
+  name: 'api-cosmos-role'
+  scope: rg
+  params: {
+    cosmosAccountName: cosmos.outputs.accountName
+    apiPrincipalId: api.outputs.SERVICE_API_IDENTITY_PRINCIPAL_ID
   }
 }
 
@@ -217,8 +225,8 @@ module apimApi 'br/public:avm/ptn/azd/apim-api:0.1.0' = if (useAPIM) {
 }
 
 // Data outputs
-output AZURE_COSMOS_CONNECTION_STRING_KEY string = cosmos.outputs.connectionStringKey
 output AZURE_COSMOS_DATABASE_NAME string = cosmos.outputs.databaseName
+output AZURE_COSMOS_ENDPOINT string = cosmos.outputs.endpoint
 
 // App outputs
 output APPLICATIONINSIGHTS_CONNECTION_STRING string = monitoring.outputs.applicationInsightsConnectionString

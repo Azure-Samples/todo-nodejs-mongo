@@ -19,8 +19,8 @@ export const getConfig: () => Promise<AppConfig> = async () => {
     const databaseConfig = config.get<DatabaseConfig>("database");
     const observabilityConfig = config.get<ObservabilityConfig>("observability");
 
-    if (!databaseConfig.connectionString) {
-        logger.warn("database.connectionString is required but has not been set. Ensure environment variable 'AZURE_COSMOS_CONNECTION_STRING' has been set");
+    if (!databaseConfig.endpoint) {
+        logger.warn("database.endpoint is required but has not been set. Ensure environment variable 'AZURE_COSMOS_ENDPOINT' has been set");
     }
 
     if (!observabilityConfig.connectionString) {
@@ -33,7 +33,7 @@ export const getConfig: () => Promise<AppConfig> = async () => {
             roleName: observabilityConfig.roleName,
         },
         database: {
-            connectionString: databaseConfig.connectionString,
+            endpoint: databaseConfig.endpoint,
             databaseName: databaseConfig.databaseName,
         },
     };

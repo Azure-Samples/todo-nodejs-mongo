@@ -24,6 +24,7 @@
     ]
   },
   "dependencies": {
+    "@azure/cosmos": "^4.4.1",
     "@azure/identity": "4.2.1",
     "@azure/keyvault-secrets": "^4.7.0",
     "applicationinsights": "^2.5.1",
@@ -35,6 +36,7 @@
     "mongoose": "^8.9.5",
     "swagger-jsdoc": "^6.2.1",
     "swagger-ui-express": "^4.4.0",
+    "uuid": "^11.1.0",
     "winston": "^3.7.2",
     "winston-transport": "^4.5.0",
     "yamljs": "^0.3.0"

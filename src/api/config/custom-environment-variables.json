@@ -1,6 +1,6 @@
 {
     "database": {
-        "connectionString": "AZURE_COSMOS_CONNECTION_STRING",
+        "endpoint": "AZURE_COSMOS_ENDPOINT",
         "databaseName": "AZURE_COSMOS_DATABASE_NAME"
     },
     "observability": {

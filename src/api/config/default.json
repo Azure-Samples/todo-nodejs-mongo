@@ -1,6 +1,6 @@
 {
     "database": {
-        "connectionString": "",
+        "endpoint": "",
         "databaseName": "Todo"
     },
     "observability": {
