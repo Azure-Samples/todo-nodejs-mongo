@@ -12,6 +12,7 @@ products:
 - azure-app-service
 - azure-monitor
 - azure-pipelines
+- github-actions
 urlFragment: todo-nodejs-mongo
 name: React Web App with Node.js API and MongoDB on Azure
 description: A complete ToDo app on Azure App Service with Node.js API and Azure Cosmos API for MongoDB for storage. Uses Azure Developer CLI (azd) to build, deploy, and monitor
@@ -53,6 +54,65 @@ azd init --template Azure-Samples/todo-nodejs-mongo
 # Provision and deploy to Azure
 azd up
 ```
+
+## Deployment via GitHub Actions (Cloud-only)
+
+If you want to deploy directly from GitHub without installing tools locally, configure GitHub Actions as follows.
+
+### 1. Generate Azure Credentials
+
+Run the following command in **Azure Cloud Shell**:
+
+```bash
+az ad sp create-for-rbac --name "github-auth-sp" --role contributor --scopes /subscriptions/<SUBSCRIPTION_ID> --sdk-auth
+```
+
+Replace `<SUBSCRIPTION_ID>` with your Azure Subscription ID.  
+The command returns a JSON credential.
+
+---
+
+### 2. Add GitHub Secret
+
+Open your repository and navigate to:
+
+**Settings → Secrets and variables → Actions**
+
+Create a **New repository secret**:
+
+```
+Name: AZURE_CREDENTIALS
+Value: <Paste the entire JSON output from Step 1>
+```
+
+---
+
+### 3. Add GitHub Variables
+
+Go to **Settings → Secrets and variables → Variables** and add:
+
+```
+AZURE_SUBSCRIPTION_ID = <Your Azure Subscription ID>
+AZURE_LOCATION = centralindia
+AZURE_ENV_NAME = todo-node-env
+```
+
+---
+
+### 4. Run Deployment
+
+Trigger the workflow by pushing a commit:
+
+```bash
+git add .
+git commit -m "trigger deployment"
+git push origin main
+```
+
+Or run it manually from:
+
+**GitHub → Actions → Run workflow**
+
 
 ### Application Architecture
 
